@@ -34,7 +34,7 @@ func main() {
 	flag.Parse()
 	execFolder, err := osext.ExecutableFolder()
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	parts := filepath.SplitList(execFolder)
 	bundleDir := "${BUNDLE_DIR}"
@@ -47,22 +47,22 @@ func main() {
 	}
 	f, err := os.Open(*configFile)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	var config Config
 	dec := json.NewDecoder(f)
 	err = dec.Decode(&config)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	f.Close()
 	root, err := catalystDir()
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	err = os.Mkdir(root, 0755)
 	if err != nil && !os.IsExist(err) {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	for _, file := range config.Files {
 		src := file.Source
@@ -74,34 +74,34 @@ func main() {
 		log.Println("Downloading", src)
 		tmp, err := ioutil.TempFile("", "catalyst-")
 		if err != nil {
-			log.Fatal(err)
+			log.Panic(err)
 		}
 		resp, err := http.Get(src)
 		if err != nil {
-			log.Fatal(err)
+			log.Panic(err)
 		}
 		_, err = io.Copy(tmp, resp.Body)
 		if err != nil {
-			log.Fatal(err)
+			log.Panic(err)
 		}
 		resp.Body.Close()
 		if resp.Header.Get("Content-Type") == "application/zip" {
 			log.Println("Extracting zip file")
 			_, err = tmp.Seek(0, os.SEEK_SET)
 			if err != nil {
-				log.Fatal(err)
+				log.Panic(err)
 			}
 			fi, err := tmp.Stat()
 			if err != nil {
-				log.Fatal(err)
+				log.Panic(err)
 			}
 			err = os.Mkdir(dst, 0755)
 			if err != nil && !os.IsExist(err) {
-				log.Fatal(err)
+				log.Panic(err)
 			}
 			r, err := zip.NewReader(tmp, fi.Size())
 			if err != nil {
-				log.Fatal(err)
+				log.Panic(err)
 			}
 			for _, f := range r.File {
 				log.Println(f.Name)
@@ -110,24 +110,24 @@ func main() {
 				if fi.IsDir() {
 					err = os.Mkdir(name, 0755)
 					if err != nil {
-						log.Fatal(err)
+						log.Panic(err)
 					}
 				} else {
 					srcfile, err := f.Open()
 					if err != nil {
-						log.Fatal(err)
+						log.Panic(err)
 					}
 					dstfile, err := os.Create(name)
 					if err != nil {
-						log.Fatal(err)
+						log.Panic(err)
 					}
 					_, err = io.CopyN(dstfile, srcfile, fi.Size())
 					if err != nil {
-						log.Fatal(err)
+						log.Panic(err)
 					}
 					err = dstfile.Close()
 					if err != nil {
-						log.Fatal(err)
+						log.Panic(err)
 					}
 					srcfile.Close()
 				}
@@ -138,7 +138,7 @@ func main() {
 			tmp.Close()
 			err = os.Rename(tmp.Name(), dst)
 			if err != nil {
-				log.Fatal(err)
+				log.Panic(err)
 			}
 		}
 	}
@@ -149,6 +149,6 @@ func main() {
 	cmd := exec.Command(config.Command, config.Args...)
 	err = cmd.Run()
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 }
