@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -52,8 +53,12 @@ func main() {
 	for _, file := range config.Files {
 		src := file.Source
 		dst := filepath.Join(basedir, file.Destination)
-		os.Stdout.WriteString("Downloading " + src + "\n")
-		out, err := os.Create(dst)
+		if _, err := os.Stat(dst); err == nil {
+			log.Println("File exists: ", dst)
+			continue
+		}
+		log.Println("Downloading", src)
+		tmp, err := ioutil.TempFile("", "catalyst-")
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -61,12 +66,16 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		_, err = io.Copy(out, resp.Body)
+		_, err = io.Copy(tmp, resp.Body)
 		if err != nil {
 			log.Fatal(err)
 		}
-		out.Close()
+		tmp.Close()
 		resp.Body.Close()
+		err = os.Rename(tmp.Name(), dst)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 	cmd := exec.Command(config.Command, config.Args...)
 	err = cmd.Run()
