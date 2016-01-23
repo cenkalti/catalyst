@@ -85,7 +85,7 @@ func main() {
 			log.Panic(err)
 		}
 		resp.Body.Close()
-		if resp.Header.Get("Content-Type") == "application/zip" {
+		if resp.Header.Get("Content-Type") == "application/zip" || strings.HasSuffix(file.Source, ".zip") {
 			log.Println("Extracting zip file")
 			_, err = tmp.Seek(0, os.SEEK_SET)
 			if err != nil {
