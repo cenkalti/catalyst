@@ -1,0 +1,14 @@
+{
+	"ImportPath": "github.com/cenkalti/catalyst",
+	"GoVersion": "go1.5",
+	"Deps": [
+		{
+			"ImportPath": "github.com/kardianos/osext",
+			"Rev": "29ae4ffbc9a6fe9fb2bc5029050ce6996ea1d3bc"
+		},
+		{
+			"ImportPath": "github.com/mitchellh/go-homedir",
+			"Rev": "d682a8f0cf139663a984ff12528da460ca963de9"
+		}
+	]
+}

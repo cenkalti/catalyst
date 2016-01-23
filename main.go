@@ -13,8 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kardianos/osext"
-	"github.com/mitchellh/go-homedir"
+	"github.com/cenkalti/catalyst/Godeps/_workspace/src/github.com/kardianos/osext"
+	"github.com/cenkalti/catalyst/Godeps/_workspace/src/github.com/mitchellh/go-homedir"
 )
 
 var configFile = flag.String("config", "", "")
