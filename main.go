@@ -142,6 +142,8 @@ func main() {
 			}
 		}
 	}
+	config.Command = strings.Replace(config.Command, "${CATALYST_DIR}", root, -1)
+	config.Command = strings.Replace(config.Command, "${BUNDLE_DIR}", bundleDir, -1)
 	for i := range config.Args {
 		config.Args[i] = strings.Replace(config.Args[i], "${CATALYST_DIR}", root, -1)
 		config.Args[i] = strings.Replace(config.Args[i], "${BUNDLE_DIR}", bundleDir, -1)
