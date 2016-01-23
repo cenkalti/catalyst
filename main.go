@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -27,31 +28,26 @@ type Action struct {
 func main() {
 	flag.Parse()
 	if *configFile == "" {
-		os.Stderr.WriteString("config argument is missing\n")
-		os.Exit(1)
+		log.Fatal("config argument is missing")
 	}
 	f, err := os.Open(*configFile)
 	if err != nil {
-		os.Stderr.WriteString("cannot open config file: " + err.Error() + "\n")
-		os.Exit(2)
+		log.Fatal(err)
 	}
 	var config Config
 	dec := json.NewDecoder(f)
 	err = dec.Decode(&config)
 	if err != nil {
-		os.Stderr.WriteString("cannot decode json in config: " + err.Error() + "\n")
-		os.Exit(3)
+		log.Fatal(err)
 	}
 	f.Close()
 	basedir, err := catalystDir()
 	if err != nil {
-		os.Stderr.WriteString(err.Error() + "\n")
-		os.Exit(4)
+		log.Fatal(err)
 	}
 	err = os.Mkdir(basedir, 0755)
 	if err != nil && !os.IsExist(err) {
-		os.Stderr.WriteString("cannot create directory: " + basedir + ": " + err.Error() + "\n")
-		os.Exit(5)
+		log.Fatal(err)
 	}
 	for _, file := range config.Files {
 		src := file.Source
@@ -59,18 +55,15 @@ func main() {
 		os.Stdout.WriteString("Downloading " + src + "\n")
 		out, err := os.Create(dst)
 		if err != nil {
-			os.Stderr.WriteString("cannot create file: " + dst + ": " + err.Error() + "\n")
-			os.Exit(6)
+			log.Fatal(err)
 		}
 		resp, err := http.Get(src)
 		if err != nil {
-			os.Stderr.WriteString("cannot get file: " + src + ": " + err.Error() + "\n")
-			os.Exit(7)
+			log.Fatal(err)
 		}
 		_, err = io.Copy(out, resp.Body)
 		if err != nil {
-			os.Stderr.WriteString("cannot download file: " + src + ": " + err.Error() + "\n")
-			os.Exit(8)
+			log.Fatal(err)
 		}
 		out.Close()
 		resp.Body.Close()
@@ -78,7 +71,6 @@ func main() {
 	cmd := exec.Command(config.Command, config.Args...)
 	err = cmd.Run()
 	if err != nil {
-		os.Stderr.WriteString("cannot run entry point: " + err.Error() + "\n")
-		os.Exit(9)
+		log.Fatal(err)
 	}
 }
