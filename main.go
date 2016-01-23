@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/kardianos/osext"
+	"github.com/mitchellh/go-homedir"
 )
 
 var configFile = flag.String("config", "", "")
@@ -28,6 +29,14 @@ type Action struct {
 	Type        string `json:"type"`
 	Source      string `json:"source"`
 	Destination string `json:"destination"`
+}
+
+func catalystDir() (string, error) {
+	home, err := homedir.Dir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, "Library", "Application Support", "Catalyst"), nil
 }
 
 func main() {
