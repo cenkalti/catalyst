@@ -1,7 +1,6 @@
 package main
 
 import (
-	"archive/zip"
 	"encoding/json"
 	"flag"
 	"io"
@@ -15,12 +14,14 @@ import (
 
 	"github.com/cenkalti/catalyst/Godeps/_workspace/src/github.com/kardianos/osext"
 	"github.com/cenkalti/catalyst/Godeps/_workspace/src/github.com/mitchellh/go-homedir"
+	"github.com/mitchellh/ioprogress"
+	"github.com/termie/go-shutil"
 )
 
 var configFile = flag.String("config", "", "")
 
 type Config struct {
-	Files   []Action `json:"files"`
+	Actions []Action `json:"actions"`
 	Command string   `json:"command"`
 	Args    []string `json:"args"`
 }
@@ -45,11 +46,8 @@ func main() {
 	if err != nil {
 		log.Panic(err)
 	}
-	parts := filepath.SplitList(execFolder)
-	bundleDir := "${BUNDLE_DIR}"
-	if len(parts) >= 2 {
-		bundleDir = filepath.Join(parts[0 : len(parts)-2]...)
-	}
+	bundleDir := execFolder[0 : len(execFolder)-15]
+	log.Println("bundle dir", bundleDir)
 	if *configFile == "" {
 		log.Println("-config flag is not set, trying catalyst.json near binary")
 		*configFile = filepath.Join(execFolder, "catalyst.json")
@@ -73,89 +71,75 @@ func main() {
 	if err != nil && !os.IsExist(err) {
 		log.Panic(err)
 	}
-	for _, file := range config.Files {
-		src := file.Source
-		dst := filepath.Join(root, file.Destination)
-		if _, err := os.Stat(dst); err == nil {
-			log.Println("File exists: ", dst)
-			continue
-		}
-		log.Println("Downloading", src)
-		tmp, err := ioutil.TempFile("", "catalyst-")
-		if err != nil {
-			log.Panic(err)
-		}
-		resp, err := http.Get(src)
-		if err != nil {
-			log.Panic(err)
-		}
-		_, err = io.Copy(tmp, resp.Body)
-		if err != nil {
-			log.Panic(err)
-		}
-		resp.Body.Close()
-		if resp.Header.Get("Content-Type") == "application/zip" || strings.HasSuffix(file.Source, ".zip") {
-			log.Println("Extracting zip file")
-			_, err = tmp.Seek(0, os.SEEK_SET)
-			if err != nil {
-				log.Panic(err)
-			}
-			fi, err := tmp.Stat()
-			if err != nil {
-				log.Panic(err)
-			}
-			err = os.Mkdir(dst, 0755)
-			if err != nil && !os.IsExist(err) {
-				log.Panic(err)
-			}
-			r, err := zip.NewReader(tmp, fi.Size())
-			if err != nil {
-				log.Panic(err)
-			}
-			for _, f := range r.File {
-				log.Println(f.Name)
-				name := filepath.Join(dst, f.Name)
-				fi := f.FileInfo()
-				if fi.IsDir() {
-					err = os.Mkdir(name, 0755)
-					if err != nil {
-						log.Panic(err)
-					}
-				} else {
-					srcfile, err := f.Open()
-					if err != nil {
-						log.Panic(err)
-					}
-					dstfile, err := os.Create(name)
-					if err != nil {
-						log.Panic(err)
-					}
-					_, err = io.CopyN(dstfile, srcfile, fi.Size())
-					if err != nil {
-						log.Panic(err)
-					}
-					err = dstfile.Close()
-					if err != nil {
-						log.Panic(err)
-					}
-					srcfile.Close()
-				}
-			}
-			tmp.Close()
-			os.Remove(tmp.Name())
-		} else {
-			tmp.Close()
-			err = os.Rename(tmp.Name(), dst)
-			if err != nil {
-				log.Panic(err)
-			}
-		}
-	}
 	config.Command = strings.Replace(config.Command, "${CATALYST_DIR}", root, -1)
 	config.Command = strings.Replace(config.Command, "${BUNDLE_DIR}", bundleDir, -1)
 	for i := range config.Args {
 		config.Args[i] = strings.Replace(config.Args[i], "${CATALYST_DIR}", root, -1)
 		config.Args[i] = strings.Replace(config.Args[i], "${BUNDLE_DIR}", bundleDir, -1)
+	}
+	for _, action := range config.Actions {
+		action.Source = strings.Replace(action.Source, "${CATALYST_DIR}", root, -1)
+		action.Source = strings.Replace(action.Source, "${BUNDLE_DIR}", bundleDir, -1)
+		action.Destination = strings.Replace(action.Destination, "${CATALYST_DIR}", root, -1)
+		action.Destination = strings.Replace(action.Destination, "${BUNDLE_DIR}", bundleDir, -1)
+		log.Println("action", action.Type, action.Source, action.Destination)
+		switch action.Type {
+		case "get":
+			if _, err := os.Stat(action.Destination); err == nil {
+				log.Println("File exists: ", action.Destination)
+				continue
+			}
+			log.Println("Downloading", action.Source)
+			tmp, err := ioutil.TempFile("", "catalyst-")
+			if err != nil {
+				log.Panic(err)
+			}
+			resp, err := http.Get(action.Source)
+			if err != nil {
+				log.Panic(err)
+			}
+			if resp.ContentLength > 0 {
+				progressR := &ioprogress.Reader{
+					Reader: resp.Body,
+					Size:   resp.ContentLength,
+				}
+				_, err = io.Copy(tmp, progressR)
+			}
+			_, err = io.Copy(tmp, resp.Body)
+			if err != nil {
+				log.Panic(err)
+			}
+			resp.Body.Close()
+			err = tmp.Close()
+			if err != nil {
+				log.Panic(err)
+			}
+			if resp.Header.Get("Content-Type") == "application/zip" || strings.HasSuffix(action.Source, ".zip") {
+				log.Println("Extracting zip file")
+				unzip := exec.Command("unzip", tmp.Name(), "-d", action.Destination)
+				err = unzip.Run()
+				if err != nil {
+					log.Panic(err)
+				}
+				os.Remove(tmp.Name())
+			} else {
+				err = os.Rename(tmp.Name(), action.Destination)
+				if err != nil {
+					log.Panic(err)
+				}
+			}
+		case "copyFile":
+			err = shutil.CopyFile(action.Source, action.Destination, false)
+			if err != nil {
+				log.Println(err)
+			}
+		case "copyTree":
+			log.Println("copy tree", action.Source, action.Destination)
+			err = shutil.CopyTree(action.Source, action.Destination, nil)
+			if err != nil {
+				log.Println(err)
+			}
+		}
 	}
 	cmd := exec.Command(config.Command, config.Args...)
 	err = cmd.Run()
