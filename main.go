@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"flag"
 	"io"
@@ -42,17 +43,17 @@ func main() {
 		log.Fatal(err)
 	}
 	f.Close()
-	basedir, err := catalystDir()
+	root, err := catalystDir()
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = os.Mkdir(basedir, 0755)
+	err = os.Mkdir(root, 0755)
 	if err != nil && !os.IsExist(err) {
 		log.Fatal(err)
 	}
 	for _, file := range config.Files {
 		src := file.Source
-		dst := filepath.Join(basedir, file.Destination)
+		dst := filepath.Join(root, file.Destination)
 		if _, err := os.Stat(dst); err == nil {
 			log.Println("File exists: ", dst)
 			continue
@@ -70,11 +71,62 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		tmp.Close()
 		resp.Body.Close()
-		err = os.Rename(tmp.Name(), dst)
-		if err != nil {
-			log.Fatal(err)
+		if resp.Header.Get("Content-Type") == "application/zip" {
+			log.Println("Extracting zip file")
+			_, err = tmp.Seek(0, os.SEEK_SET)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fi, err := tmp.Stat()
+			if err != nil {
+				log.Fatal(err)
+			}
+			err = os.Mkdir(dst, 0755)
+			if err != nil && !os.IsExist(err) {
+				log.Fatal(err)
+			}
+			r, err := zip.NewReader(tmp, fi.Size())
+			if err != nil {
+				log.Fatal(err)
+			}
+			for _, f := range r.File {
+				log.Println(f.Name)
+				name := filepath.Join(dst, f.Name)
+				fi := f.FileInfo()
+				if fi.IsDir() {
+					err = os.Mkdir(name, 0755)
+					if err != nil {
+						log.Fatal(err)
+					}
+				} else {
+					srcfile, err := f.Open()
+					if err != nil {
+						log.Fatal(err)
+					}
+					dstfile, err := os.Create(name)
+					if err != nil {
+						log.Fatal(err)
+					}
+					_, err = io.CopyN(dstfile, srcfile, fi.Size())
+					if err != nil {
+						log.Fatal(err)
+					}
+					err = dstfile.Close()
+					if err != nil {
+						log.Fatal(err)
+					}
+					srcfile.Close()
+				}
+			}
+			tmp.Close()
+			os.Remove(tmp.Name())
+		} else {
+			tmp.Close()
+			err = os.Rename(tmp.Name(), dst)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 	}
 	cmd := exec.Command(config.Command, config.Args...)
