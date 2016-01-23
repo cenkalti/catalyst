@@ -30,7 +30,8 @@ type Action struct {
 func main() {
 	flag.Parse()
 	if *configFile == "" {
-		log.Fatal("config argument is missing")
+		log.Println("-config flag is not set, trying catalyst.json in current working direcotry")
+		*configFile = "catalyst.json"
 	}
 	f, err := os.Open(*configFile)
 	if err != nil {
