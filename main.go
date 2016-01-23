@@ -12,6 +12,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/kardianos/osext"
 )
 
 var configFile = flag.String("config", "", "")
@@ -30,9 +32,18 @@ type Action struct {
 
 func main() {
 	flag.Parse()
+	execFolder, err := osext.ExecutableFolder()
+	if err != nil {
+		log.Fatal(err)
+	}
+	parts := filepath.SplitList(execFolder)
+	bundleDir := "${BUNDLE_DIR}"
+	if len(parts) >= 2 {
+		bundleDir = filepath.Join(parts[0 : len(parts)-2]...)
+	}
 	if *configFile == "" {
-		log.Println("-config flag is not set, trying catalyst.json in current working direcotry")
-		*configFile = "catalyst.json"
+		log.Println("-config flag is not set, trying catalyst.json near binary")
+		*configFile = filepath.Join(execFolder, "catalyst.json")
 	}
 	f, err := os.Open(*configFile)
 	if err != nil {
@@ -132,7 +143,8 @@ func main() {
 		}
 	}
 	for i := range config.Args {
-		config.Args[i] = strings.Replace(config.Args[i], "$CATALYST_DIR", root, -1)
+		config.Args[i] = strings.Replace(config.Args[i], "${CATALYST_DIR}", root, -1)
+		config.Args[i] = strings.Replace(config.Args[i], "${BUNDLE_DIR}", bundleDir, -1)
 	}
 	cmd := exec.Command(config.Command, config.Args...)
 	err = cmd.Run()
