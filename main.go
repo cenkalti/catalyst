@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 var configFile = flag.String("config", "", "")
@@ -129,6 +130,9 @@ func main() {
 				log.Fatal(err)
 			}
 		}
+	}
+	for i := range config.Args {
+		config.Args[i] = strings.Replace(config.Args[i], "$CATALYST_DIR", root, -1)
 	}
 	cmd := exec.Command(config.Command, config.Args...)
 	err = cmd.Run()
